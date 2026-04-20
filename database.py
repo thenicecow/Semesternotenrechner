@@ -10,49 +10,48 @@ DB_FILE = 'notenrechner.db'
 def sync_to_switchdrive():
     """
     Lädt die lokale Datenbank-Datei als Backup in das Switch Drive hoch.
-    Stelle sicher, dass 'webdav4' in deiner requirements.txt steht.
+    Verwendet die korrekte webdav4-Methode 'upload_file'.
     """
     try:
-        # Erstellt den Client mit den Daten aus secrets.toml
-        # WICHTIG: Hostname muss https://drive.switch.ch/remote.php/dav/files/DEINE_EMAIL/ sein
+        # Erstellt den Client mit den Daten aus st.secrets
         client = Client(
             base_url=st.secrets["webdav"]["hostname"],
             auth=(st.secrets["webdav"]["username"], st.secrets["webdav"]["password"])
         )
         
-        # Testet, ob die Verbindung zum Root-Verzeichnis funktioniert
+        # Prüfung, ob die Verbindung zum Server grundsätzlich steht
         if client.exists("/"):
-            with open(DB_FILE, 'rb') as f:
-                # Überträgt die Datei und überschreibt eine alte Version falls vorhanden
-                # Die Datei erscheint in deinem Switch Drive als 'notenrechner_backup.db'
-                client.upload(content=f, to_path="/notenrechner_backup.db", overwrite=True)
+            # webdav4 benötigt 'upload_file' für den Pfad-basierten Upload
+            client.upload_file(
+                local_path=DB_FILE, 
+                to_path="notenrechner_backup.db", 
+                overwrite=True
+            )
             return True
         else:
-            st.error("Verbindung zu Switch Drive möglich, aber Verzeichnis nicht erreichbar.")
+            st.error("Verbindung ok, aber Hauptverzeichnis nicht gefunden.")
             return False
             
     except Exception as e:
-        # Gibt die genaue Fehlermeldung in der App aus (hilfreich bei 401 oder 404 Fehlern)
+        # Gibt den genauen Fehler aus, falls z.B. die URL oder das Passwort falsch ist
         st.error(f"Cloud-Sync Fehler: {str(e)}")
         return False
 
 # --- Lokale Datenbank Operationen (SQLite) ---
 
 def init_db():
-    """Initialisiert die lokalen Tabellen auf dem Cloud-Server."""
+    """Initialisiert die Tabellen in der lokalen SQLite-Datei."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    # Tabelle für die Fächer und Noten
     c.execute('''CREATE TABLE IF NOT EXISTS user_storage 
                  (username TEXT PRIMARY KEY, data TEXT)''')
-    # Tabelle für die Benutzer-Accounts
     c.execute('''CREATE TABLE IF NOT EXISTS credentials 
                  (username TEXT PRIMARY KEY, name TEXT, password TEXT)''')
     conn.commit()
     conn.close()
 
 def save_data(username, data_dict):
-    """Speichert das Noten-Dictionary eines Users lokal in der SQLite-DB."""
+    """Speichert Notendaten lokal."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     json_data = json.dumps(data_dict)
@@ -62,7 +61,7 @@ def save_data(username, data_dict):
     conn.close()
 
 def load_data(username):
-    """Lädt die lokalen Notendaten eines Users."""
+    """Lädt Notendaten lokal."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT data FROM user_storage WHERE username = ?", (username,))
@@ -71,7 +70,7 @@ def load_data(username):
     return json.loads(row[0]) if row else {}
 
 def save_user_credentials(username, name, hashed_password):
-    """Speichert ein neues Benutzerkonto nach der Registrierung lokal ab."""
+    """Speichert Login-Daten lokal."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO credentials (username, name, password) VALUES (?, ?, ?)", 
@@ -80,7 +79,7 @@ def save_user_credentials(username, name, hashed_password):
     conn.close()
 
 def load_all_credentials():
-    """Lädt alle registrierten Benutzer für den Authenticator beim App-Start."""
+    """Lädt alle User für den Authenticator."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT username, name, password FROM credentials")
