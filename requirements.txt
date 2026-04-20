@@ -1,5 +1,10 @@
 streamlit
-streamlit_authenticator
+streamlit-authenticator
 pandas
-json
 pyyaml
+webdav4
+fsspec
+matplotlib
+numpy
+altair
+pytz
