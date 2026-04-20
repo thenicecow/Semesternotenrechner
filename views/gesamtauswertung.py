@@ -1,22 +1,22 @@
 import streamlit as st
+import pandas as pd
 
 st.title("⚖️ Gesamtauswertung")
 user_data = st.session_state.current_notes
+pts, creds, sum_list = 0.0, 0.0, []
 
-total_pts = 0.0
-total_creds = 0.0
-summary = []
+for n, i in user_data.items():
+    w = sum(e['weight'] for e in i['exams'])
+    if w == 100:
+        note = sum(e['grade'] * (e['weight']/100) for e in i['exams'])
+        pts += note * i['credits']
+        creds += i['credits']
+        sum_list.append({"Fach": n, "Note": round(note, 2), "ECTS": i['credits']})
 
-for name, info in user_data.items():
-    total_w = sum(e['weight'] for e in info['exams'])
-    if total_w == 100:
-        final_g = sum(e['grade'] * (e['weight']/100) for e in info['exams'])
-        total_pts += final_g * info['credits']
-        total_creds += info['credits']
-        summary.append({"Fach": name, "Note": round(final_g, 2), "ECTS": info['credits']})
-
-if summary:
-    st.table(summary)
-    st.header(f"Schnitt: {(total_pts / total_creds):.3f}")
+if sum_list:
+    st.table(sum_list)
+    st.header(f"Schnitt: {(pts/creds):.3f}")
+    csv = pd.DataFrame(sum_list).to_csv(index=False).encode('utf-8')
+    st.download_button("CSV Export für Switch Drive", csv, "noten.csv", "text/csv")
 else:
-    st.info("Noch keine Fächer mit 100% Gewichtung fertig.")
+    st.warning("Keine fertigen Fächer (100%).")
