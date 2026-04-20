@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit_authenticator as stauth
 from database import init_db, load_data, save_data, save_user_credentials, load_all_credentials, sync_to_switchdrive
 
-# Seite konfigurieren (Muss als allererstes stehen)
+# Seite konfigurieren
 st.set_page_config(page_title="Mein Notenrechner", layout="wide")
 
 # Datenbank initialisieren
@@ -26,11 +26,20 @@ if not st.session_state.get("authentication_status"):
     
     with tab2:
         try:
-            res = authenticator.register_user(location='main')
-            if res[1]: # Wenn Username zurückgegeben wurde
-                new_user = st.session_state.credentials['usernames'][res[1]]
-                save_user_credentials(res[1], new_user['name'], new_user['password'])
-                st.success('Registrierung erfolgreich! Du kannst dich jetzt anmelden.')
+            # FIX: pre_authorization=False hinzugefügt, damit der Fehler verschwindet
+            res = authenticator.register_user(location='main', pre_authorization=False)
+            
+            if res and res[1]: # Wenn ein Username zurückgegeben wurde
+                new_username = res[1]
+                new_user_data = st.session_state.credentials['usernames'][new_username]
+                
+                # In der lokalen Datenbank speichern
+                save_user_credentials(
+                    new_username, 
+                    new_user_data['name'], 
+                    new_user_data['password']
+                )
+                st.success('Registrierung erfolgreich! Bitte wechsle zum Tab "Anmelden".')
         except Exception as e:
             st.error(f"Fehler bei Registrierung: {e}")
 
@@ -45,10 +54,9 @@ if st.session_state.get("authentication_status"):
     username = st.session_state['username']
     st.sidebar.title(f"👋 Hallo {st.session_state['name']}")
     
-    # Logout Button
     authenticator.logout('Logout', 'sidebar')
 
-    # Cloud Sync Button in der Sidebar
+    # Cloud Sync Button
     st.sidebar.divider()
     if st.sidebar.button("🔄 Cloud-Sync (Switch Drive)"):
         with st.sidebar.spinner("Synchronisiere..."):
@@ -72,11 +80,10 @@ if st.session_state.get("authentication_status"):
         ]
     }
     
-    # App ausführen
     pg = st.navigation(pages)
     pg.run()
     
-    # Automatisch lokal speichern nach jeder Interaktion
+    # Automatisch lokal speichern
     save_data(username, st.session_state.current_notes)
 
 elif st.session_state.get("authentication_status") is False:
