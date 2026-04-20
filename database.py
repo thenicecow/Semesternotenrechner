@@ -6,25 +6,29 @@ from webdav4.client import Client
 DB_FILE = 'notenrechner.db'
 
 def sync_to_switchdrive():
-    """Lädt die lokale Datenbank-Datei automatisch hoch."""
+    """Lädt die Datenbank automatisch im Hintergrund hoch."""
     try:
+        # Client mit den korrekten Secrets initialisieren
         client = Client(
             base_url=st.secrets["webdav"]["hostname"],
             auth=(st.secrets["webdav"]["username"], st.secrets["webdav"]["password"])
         )
-        # Upload der Datei
+        
+        # Lokale Datei als 'notenrechner_backup.db' hochladen
+        # Wir nutzen upload_file, da dies die stabilste Methode in webdav4 ist
         client.upload_file(
             local_path=DB_FILE, 
             to_path="notenrechner_backup.db", 
             overwrite=True
         )
         return True
-    except Exception:
-        # Im Automatik-Modus loggen wir Fehler eher dezent in der Konsole
+    except Exception as e:
+        # Fehler werden nur dezent geloggt, um den User-Flow nicht zu stören
+        print(f"Automatischer Sync fehlgeschlagen: {e}")
         return False
 
 def save_data(username, data_dict):
-    """Speichert lokal UND triggert den Cloud-Sync."""
+    """Speichert die Noten lokal und sendet sie sofort an Switch Drive."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     json_data = json.dumps(data_dict)
@@ -33,11 +37,11 @@ def save_data(username, data_dict):
     conn.commit()
     conn.close()
     
-    # AUTOMATISCHER SYNC
+    # Hier passiert die Magie: Automatischer Cloud-Upload nach jeder Änderung
     sync_to_switchdrive()
 
 def save_user_credentials(username, name, hashed_password):
-    """Speichert neue User lokal UND triggert den Cloud-Sync."""
+    """Speichert neue Benutzer und sichert die DB sofort in der Cloud."""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("INSERT OR REPLACE INTO credentials (username, name, password) VALUES (?, ?, ?)", 
@@ -45,11 +49,9 @@ def save_user_credentials(username, name, hashed_password):
     conn.commit()
     conn.close()
     
-    # AUTOMATISCHER SYNC (damit der neue User sofort im Backup ist)
+    # Auch bei neuen Usern sofort sichern
     sync_to_switchdrive()
 
-# Die anderen Funktionen (init_db, load_data, load_all_credentials) 
-# bleiben gleich wie vorher...
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
