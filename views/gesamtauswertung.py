@@ -1,26 +1,22 @@
 import streamlit as st
 
-st.title("Gesamtauswertung")
+st.title("⚖️ Gesamtauswertung")
+user_data = st.session_state.current_notes
 
-total_weighted_points = 0
-total_credits = 0
+total_pts = 0.0
+total_creds = 0.0
+summary = []
 
-for name, data in st.session_state.subjects.items():
-    exams = data["exams"]
-    if exams:
-        # Berechne Modulnote
-        total_weight = sum(e["weight"] for e in exams)
-        if total_weight > 0:
-            module_grade = sum(e["grade"] * e["weight"] for e in exams) / total_weight
-            
-            # Nur wenn das Modul abgeschlossen ist (100%), zählt es für den Schnitt
-            if total_weight == 100:
-                total_weighted_points += module_grade * data["credits"]
-                total_credits += data["credits"]
-                st.write(f"{name}: Note {module_grade:.2f} ({data['credits']} Credits)")
-            else:
-                st.write(f"{name}: Noch offen ({total_weight}% erfasst)")
+for name, info in user_data.items():
+    total_w = sum(e['weight'] for e in info['exams'])
+    if total_w == 100:
+        final_g = sum(e['grade'] * (e['weight']/100) for e in info['exams'])
+        total_pts += final_g * info['credits']
+        total_creds += info['credits']
+        summary.append({"Fach": name, "Note": round(final_g, 2), "ECTS": info['credits']})
 
-if total_credits > 0:
-    final_avg = total_weighted_points / total_credits
-    st.header(f"Gesamtdurchschnitt: {final_avg:.2f}")
+if summary:
+    st.table(summary)
+    st.header(f"Schnitt: {(total_pts / total_creds):.3f}")
+else:
+    st.info("Noch keine Fächer mit 100% Gewichtung fertig.")

@@ -1,14 +1,28 @@
 import streamlit as st
+import pandas as pd
+from database import save_data
 
-st.title("Prüfungsnoten eingeben")
-if not st.session_state.subjects:
-    st.warning("Bitte erstelle zuerst ein Fach unter 'Fächer erfassen'.")
+st.title("📝 Prüfungen erfassen")
+user_data = st.session_state.current_notes
+
+if not user_data:
+    st.warning("Erstelle erst ein Fach.")
 else:
-    subject = st.selectbox("Fach auswählen", options=list(st.session_state.subjects.keys()))
+    selected = st.selectbox("Fach wählen", list(user_data.keys()))
     
-    with st.form("add_exam"):
-        grade = st.number_input("Note", min_value=1.0, max_value=6.0, step=0.25)
-        weight = st.number_input("Gewichtung in %", min_value=1, max_value=100)
-        if st.form_submit_button("Note hinzufügen"):
-            st.session_state.subjects[subject]["exams"].append({"grade": grade, "weight": weight})
+    with st.form("exam_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        grade = col1.number_input("Note", 1.0, 6.0, 5.0, 0.05)
+        weight = col2.number_input("Gewicht %", 1, 100, 10)
+        if st.form_submit_button("Hinzufügen"):
+            user_data[selected]['exams'].append({"grade": grade, "weight": weight})
+            save_data(st.session_state["username"], user_data)
             st.success("Note gespeichert!")
+            st.rerun()
+
+    if user_data[selected]['exams']:
+        st.table(pd.DataFrame(user_data[selected]['exams']))
+        if st.button("Fach leeren"):
+            user_data[selected]['exams'] = []
+            save_data(st.session_state["username"], user_data)
+            st.rerun()
