@@ -1,25 +1,23 @@
 import streamlit as st
 from database import save_data
 
-st.title("➕ Fächer erfassen")
+st.title("➕ Module verwalten")
 user_data = st.session_state.current_notes
 
-with st.form("subject_form", clear_on_submit=True):
-    name = st.text_input("Name des Fachs")
-    credits = st.number_input("Credits", min_value=1.0, value=3.0, step=0.5)
-    submit = st.form_submit_button("Fach speichern")
+with st.form("add_subject", clear_on_submit=True):
+    name = st.text_input("Name des Moduls")
+    creds = st.number_input("Credits (ECTS)", 0.5, 30.0, 3.0, 0.5)
+    if st.form_submit_button("Hinzufügen"):
+        if name:
+            user_data[name] = {"credits": creds, "exams": []}
+            save_data(st.session_state["username"], user_data)
+            st.rerun()
 
-if submit and name:
-    user_data[name] = {"credits": credits, "exams": []}
-    save_data(st.session_state["username"], user_data)
-    st.success(f"'{name}' gespeichert!")
-    st.rerun()
-
-st.write("### Deine Fächer")
-for subj in list(user_data.keys()):
-    col1, col2 = st.columns([3, 1])
-    col1.write(f"**{subj}** ({user_data[subj]['credits']} Credits)")
-    if col2.button("Löschen", key=f"del_{subj}"):
-        del user_data[subj]
+st.write("### Liste deiner Module")
+for s in list(user_data.keys()):
+    c1, c2 = st.columns([5, 1])
+    c1.write(f"**{s}** ({user_data[s]['credits']} ECTS)")
+    if c2.button("🗑️", key=f"del_{s}"):
+        del user_data[s]
         save_data(st.session_state["username"], user_data)
         st.rerun()

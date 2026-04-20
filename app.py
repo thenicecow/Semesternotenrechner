@@ -1,21 +1,18 @@
 import streamlit as st
 import streamlit_authenticator as stauth
-from database import init_db, load_data, save_data
-import yaml
+from database import init_db, load_data, save_data, save_user_credentials, load_all_credentials, sync_to_switchdrive
 
-# 1. Datenbank beim Start initialisieren
+# Seite konfigurieren (Muss als allererstes stehen)
+st.set_page_config(page_title="Mein Notenrechner", layout="wide")
+
+# Datenbank initialisieren
 init_db()
 
-# 2. Session State für Benutzer-Konfiguration
-# Wir laden die User-Liste (hier beispielhaft, idealerweise käme diese auch aus einer DB)
+# Benutzerdaten laden
 if 'credentials' not in st.session_state:
-    st.session_state.credentials = {
-        'usernames': {
-            'admin': {'name': 'Admin', 'password': '123'} # Standard-User
-        }
-    }
+    st.session_state.credentials = load_all_credentials()
 
-# 3. Authenticator Objekt erstellen
+# Authenticator Setup
 authenticator = stauth.Authenticate(
     st.session_state.credentials,
     'notenrechner_cookie',
@@ -23,40 +20,46 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=30
 )
 
-# --- REGISTRIERUNG ODER LOGIN ---
-# Wir nutzen Tabs, damit der User wählen kann
-tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])
+# Login / Registrierung Bereich
+if not st.session_state.get("authentication_status"):
+    tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])
+    
+    with tab2:
+        try:
+            res = authenticator.register_user(location='main')
+            if res[1]: # Wenn Username zurückgegeben wurde
+                new_user = st.session_state.credentials['usernames'][res[1]]
+                save_user_credentials(res[1], new_user['name'], new_user['password'])
+                st.success('Registrierung erfolgreich! Du kannst dich jetzt anmelden.')
+        except Exception as e:
+            st.error(f"Fehler bei Registrierung: {e}")
 
-with tab2:
-    try:
-        # Das Register-Widget
-        email_of_registered_user, username_of_registered_user, name_of_registered_user = authenticator.register_user(location='main')
-        if email_of_registered_user:
-            st.success('Benutzer erfolgreich registriert! Du kannst dich jetzt anmelden.')
-            # Hier könnte man die neuen Credentials dauerhaft speichern
-    except Exception as e:
-        st.error(e)
+    with tab1:
+        try:
+            authenticator.login(location='main')
+        except Exception as e:
+            st.error(f"Login Fehler: {e}")
 
-with tab1:
-    try:
-        authenticator.login(location='main')
-    except Exception as e:
-        st.error(f"Fehler beim Login: {e}")
-
-# --- LOGIK BASIEREND AUF LOGIN ---
-authentication_status = st.session_state.get("authentication_status")
-
-if authentication_status:
-    # Sidebar Setup
+# Wenn eingeloggt
+if st.session_state.get("authentication_status"):
+    username = st.session_state['username']
     st.sidebar.title(f"👋 Hallo {st.session_state['name']}")
+    
+    # Logout Button
     authenticator.logout('Logout', 'sidebar')
 
-    # Daten des spezifischen Users laden
-    username = st.session_state['username']
+    # Cloud Sync Button in der Sidebar
+    st.sidebar.divider()
+    if st.sidebar.button("🔄 Cloud-Sync (Switch Drive)"):
+        with st.sidebar.spinner("Synchronisiere..."):
+            if sync_to_switchdrive():
+                st.sidebar.success("In Switch Drive gesichert!")
+
+    # Noten laden
     if 'current_notes' not in st.session_state:
         st.session_state.current_notes = load_data(username)
 
-    # Navigation definieren
+    # Navigation
     pages = {
         "Übersicht": [st.Page("views/dahbord.py", title="Dashboard", icon="📊")],
         "Eingabe": [
@@ -68,14 +71,13 @@ if authentication_status:
             st.Page("views/gesamtauswertung.py", title="Gesamtauswertung", icon="⚖️"),
         ]
     }
-
+    
+    # App ausführen
     pg = st.navigation(pages)
     pg.run()
-
-    # Automatisches Speichern der Noten
+    
+    # Automatisch lokal speichern nach jeder Interaktion
     save_data(username, st.session_state.current_notes)
 
-elif authentication_status == False:
-    st.error('Username oder Passwort ist falsch.')
-elif authentication_status == None:
-    st.info('Bitte logge dich ein oder erstelle ein Konto.')
+elif st.session_state.get("authentication_status") is False:
+    st.error('Username/Passwort ist falsch.')

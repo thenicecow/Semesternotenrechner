@@ -1,20 +1,16 @@
 import streamlit as st
 
-st.title("📋 Fächerübersicht")
-
+st.title("📋 Übersicht")
 user_data = st.session_state.current_notes
 
 if not user_data:
-    st.info("Noch keine Daten verfügbar.")
+    st.info("Noch keine Daten vorhanden.")
 else:
-    for name, info in user_data.items():
-        exams = info['exams']
-        total_w = sum(e['weight'] for e in exams)
-        
-        if total_w > 0:
-            current_avg = sum(e['grade'] * e['weight'] for e in exams) / total_w
-            st.subheader(f"{name} ({info['credits']} Credits)")
-            st.write(f"Status: **{total_w}%** | Aktueller Schnitt: **{current_avg:.2f}**")
-            st.progress(total_w / 100)
-        else:
-            st.write(f"**{name}**: Noch keine Noten eingetragen.")
+    for n, i in user_data.items():
+        w = sum(e['weight'] for e in i['exams'])
+        st.write(f"### {n} ({i['credits']} ECTS)")
+        st.progress(w/100)
+        if w > 0:
+            avg = sum(e['grade'] * e['weight'] for e in i['exams']) / w
+            st.write(f"Aktueller Schnitt: **{avg:.2f}** (bei {w}%)")
+        st.divider()

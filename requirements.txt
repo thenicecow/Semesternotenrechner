@@ -8,3 +8,5 @@ matplotlib
 numpy
 altair
 pytz
+streamlit-authenticator==0.3.1
+webdavclient3
