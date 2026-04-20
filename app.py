@@ -2,11 +2,11 @@ import streamlit as st
 import streamlit_authenticator as stauth
 from database import init_db, load_data, save_data
 
-# DB Initialisierung
+# 1. Datenbank beim Start initialisieren
 init_db()
 
-# Konfiguration der Benutzer (Passwörter hier im Klartext für das Beispiel)
-# In Produktion sollten diese gehasht sein!
+# 2. Benutzer-Konfiguration
+# WICHTIG: Ersetze diese durch deine gewünschten Logins
 credentials = {
     'usernames': {
         'max123': {'name': 'Max Muster', 'password': '123'},
@@ -14,6 +14,7 @@ credentials = {
     }
 }
 
+# 3. Authenticator Objekt erstellen
 authenticator = stauth.Authenticate(
     credentials,
     'notenrechner_cookie',
@@ -21,20 +22,33 @@ authenticator = stauth.Authenticate(
     cookie_expiry_days=30
 )
 
-name, authentication_status, username = authenticator.login('Login', 'main')
+# 4. Login-Prozess (KORRIGIERTE VERSION)
+# Falls 'location' Fehler wirft, nutzt das Paket hier die korrekten Standardwerte
+try:
+    # Neue Syntax für Version 0.3.x+
+    # Wir übergeben keine festen Strings mehr ohne Namen, um den ValueError zu vermeiden
+    result = authenticator.login(location='main')
+    
+    # Je nach Version gibt login() unterschiedliche Dinge zurück, 
+    # wir holen uns den Status direkt aus dem Authenticator-Objekt
+    authentication_status = st.session_state.get("authentication_status")
+    username = st.session_state.get("username")
+    name = st.session_state.get("name")
+except Exception as e:
+    st.error(f"Fehler beim Login-Modul: {e}")
+    authentication_status = None
 
+# 5. Logik basierend auf dem Login-Status
 if authentication_status:
-    st.sidebar.title(f"Willkommen, {name}!")
+    # Sidebar Setup
+    st.sidebar.title(f"👋 Hallo {st.session_state['name']}")
     authenticator.logout('Logout', 'sidebar')
 
-    # Username im Session State für Zugriff in Views speichern
-    st.session_state["username"] = username
-
-    # Daten des Users laden
+    # Daten des spezifischen Users aus der Datenbank laden
     if 'current_notes' not in st.session_state:
-        st.session_state.current_notes = load_data(username)
+        st.session_state.current_notes = load_data(st.session_state['username'])
 
-    # Navigation
+    # Navigation definieren (Pfade zu deinen Dateien in /views)
     pages = {
         "Übersicht": [
             st.Page("views/dahbord.py", title="Dashboard", icon="📊"),
@@ -49,11 +63,21 @@ if authentication_status:
         ]
     }
 
+    # Navigation ausführen
     pg = st.navigation(pages)
-    st.set_page_config(page_title="Notenrechner", layout="wide")
+    
+    # Page Config muss hier stehen, falls sie nicht schon global gesetzt wurde
+    # st.set_page_config(page_title="Notenrechner", layout="wide") 
+    
     pg.run()
 
 elif authentication_status == False:
-    st.error('Username/Passwort falsch')
+    st.error('Username oder Passwort ist falsch.')
+    
 elif authentication_status == None:
-    st.info('Bitte einloggen')
+    st.info('Willkommen! Bitte logge dich ein, um deine Noten zu verwalten.')
+    st.caption("Hinweis: Falls du noch keinen Account hast, kontaktiere den Admin.")
+
+# Falls du ein automatisches Speichern am Ende jeder Seite willst:
+if authentication_status and 'current_notes' in st.session_state:
+    save_data(st.session_state['username'], st.session_state.current_notes)
