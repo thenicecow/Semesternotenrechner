@@ -3,6 +3,34 @@ import streamlit_authenticator as stauth
 from database import init_db, load_data, save_data, save_user_credentials, load_all_credentials, sync_download_user
 
 # 1. Seite konfigurieren
+def _safe_rerun():
+    """Compatibility wrapper to trigger a Streamlit rerun across versions.
+
+    Tries a sequence of known APIs and falls back to toggling a session flag.
+    """
+    # Preferred API
+    if hasattr(st, "experimental_rerun"):
+        try:
+            return st.experimental_rerun()
+        except Exception:
+            pass
+
+    # Older/private fallback
+    if hasattr(st, "_rerun"):
+        try:
+            return st._rerun()
+        except Exception:
+            pass
+
+    # Try raising the runtime's RerunException if available
+    try:
+        from streamlit.runtime.scriptrunner import RerunException
+        raise RerunException()
+    except Exception:
+        # Last resort: toggle a small session_state flag to cause a rerender
+        st.session_state["__rerun_flag"] = not st.session_state.get("__rerun_flag", False)
+        return
+
 st.set_page_config(page_title="Mein Notenrechner", layout="wide")
 
 # 2. Datenbank initialisieren
@@ -54,13 +82,13 @@ if not st.session_state.get("authentication_status"):
                     st.session_state.view = "login"
                     # Setze authentication_status klar auf False, um Fehlzustände zu vermeiden
                     st.session_state['authentication_status'] = False
-                    st.rerun()
+                    _safe_rerun()
         except Exception as e:
             st.error(f"Fehler bei der Registrierung: {e}")
 
         if st.button("Abbrechen"):
             st.session_state.view = "login"
-            st.rerun()
+            _safe_rerun()
 
     # B) REINE LOGIN-ANSICHT
     else:
@@ -91,7 +119,7 @@ if not st.session_state.get("authentication_status"):
                         except Exception as e:
                             st.warning(f"Remote-Daten konnten nicht geladen werden: {e}")
 
-                        st.experimental_rerun()
+                        _safe_rerun()
 
         except Exception as e:
             # Mehr Details im Fehlerfall, damit der Nutzer und Entwickler sehen, was schief lief
@@ -100,7 +128,7 @@ if not st.session_state.get("authentication_status"):
         st.write("---")
         if st.button("Noch kein Konto? Hier registrieren"):
             st.session_state.view = "register"
-            st.rerun()
+            _safe_rerun()
 
 # --- HAUPTAPP (EINGELOGGT) ---
 if st.session_state.get("authentication_status"):
@@ -133,4 +161,4 @@ if st.session_state.get("authentication_status"):
 elif st.session_state.get("authentication_status") is False:
     st.error('Username oder Passwort ist falsch.')
     if st.button("Erneut versuchen"):
-        st.rerun()
+        _safe_rerun()
