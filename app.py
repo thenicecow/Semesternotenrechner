@@ -34,17 +34,30 @@ if not st.session_state.get("authentication_status"):
         st.title("Neues Konto erstellen")
         try:
             res = authenticator.register_user(location='main', preauthorization=False)
-            if res and res[1]:
+            # register_user gibt (name, username, password) oder ähnliche Formen
+            if res and len(res) >= 2 and res[1]:
                 new_username = res[1]
-                new_user_data = st.session_state.credentials['usernames'][new_username]
-                save_user_credentials(new_username, new_user_data['name'], new_user_data['password'])
-                st.success('Registrierung erfolgreich!')
-                if st.button("Zurück zum Login"):
+
+                # Stelle sicher, dass die in-memory credentials die neue User-Entry hat
+                # Streamlit-Authenticator trägt sie normalerweise in st.session_state.credentials ein.
+                new_user_data = st.session_state.credentials.get('usernames', {}).get(new_username)
+                if new_user_data:
+                    # Persistiere in der lokalen DB (hashed password wird bereits erwartet)
+                    save_user_credentials(new_username, new_user_data.get('name', ''), new_user_data.get('password', ''))
+
+                # Aktualisiere die lokal gelesenen credentials, damit login sofort möglich ist
+                st.session_state.credentials = load_all_credentials()
+
+                st.success('Registrierung erfolgreich! Bitte melde dich nun an.')
+                # Explizit auf Login-View zurücksetzen
+                if st.button("Zum Login"):
                     st.session_state.view = "login"
+                    # Setze authentication_status klar auf False, um Fehlzustände zu vermeiden
+                    st.session_state['authentication_status'] = False
                     st.rerun()
         except Exception as e:
-            st.error(f"Fehler: {e}")
-        
+            st.error(f"Fehler bei der Registrierung: {e}")
+
         if st.button("Abbrechen"):
             st.session_state.view = "login"
             st.rerun()
@@ -53,10 +66,28 @@ if not st.session_state.get("authentication_status"):
     else:
         st.title("Willkommen beim Notenrechner")
         try:
-            authenticator.login(location='main')
+            # Verwende die expliziten Rückgabewerte des Authenticators und
+            # setze den session_state zuverlässig. Viele Fehler beim Login
+            # entstehen, wenn die Rückgabewerte ignoriert werden.
+            name, authentication_status, username = authenticator.login(location='main')
+
+            # Nur setzen wenn nicht None (kompatibel mit verschiedenen Versionen)
+            if name is not None:
+                st.session_state['name'] = name
+            if authentication_status is not None:
+                st.session_state['authentication_status'] = authentication_status
+            if username is not None:
+                st.session_state['username'] = username
+
+            # Bei erfolgreichem Login die Seite neu laden, damit der "eingeloggt"-Zweig
+            # sofort ausgeführt wird.
+            if st.session_state.get('authentication_status'):
+                st.experimental_rerun()
+
         except Exception as e:
+            # Mehr Details im Fehlerfall, damit der Nutzer und Entwickler sehen, was schief lief
             st.error(f"Login Fehler: {e}")
-            
+
         st.write("---")
         if st.button("Noch kein Konto? Hier registrieren"):
             st.session_state.view = "register"
