@@ -1,5 +1,5 @@
-streamlit
-streamlit-authenticator
+streamlit==1.24.0
+streamlit-authenticator==0.3.1
 pandas
 pyyaml
 webdav4
@@ -8,5 +8,3 @@ matplotlib
 numpy
 altair
 pytz
-streamlit-authenticator==0.3.1
-webdavclient3

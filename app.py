@@ -1,6 +1,6 @@
 import streamlit as st
 import streamlit_authenticator as stauth
-from database import init_db, load_data, save_data, save_user_credentials, load_all_credentials
+from database import init_db, load_data, save_data, save_user_credentials, load_all_credentials, sync_download_user
 
 # 1. Seite konfigurieren
 st.set_page_config(page_title="Mein Notenrechner", layout="wide")
@@ -82,7 +82,16 @@ if not st.session_state.get("authentication_status"):
             # Bei erfolgreichem Login die Seite neu laden, damit der "eingeloggt"-Zweig
             # sofort ausgeführt wird.
             if st.session_state.get('authentication_status'):
-                st.experimental_rerun()
+                        # Nach erfolgreichem Login: versuche Remote-Daten herunterzuladen
+                        try:
+                            remote = sync_download_user(username)
+                            if remote is not None:
+                                # Überschreibe die lokalen current_notes mit den Remote-Daten
+                                st.session_state['current_notes'] = remote
+                        except Exception as e:
+                            st.warning(f"Remote-Daten konnten nicht geladen werden: {e}")
+
+                        st.experimental_rerun()
 
         except Exception as e:
             # Mehr Details im Fehlerfall, damit der Nutzer und Entwickler sehen, was schief lief
